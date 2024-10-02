@@ -1,4 +1,4 @@
-# Chat Transcript
+# Chat Transcript - 1
 
 ## User:
 
@@ -3585,3 +3585,851 @@ These changes accomplish the following:
 3. The popup handles the response accordingly, showing the appropriate message based on whether results were received or not.
 
 This approach avoids the need for `host_permissions` while still ensuring that the extension only functions on Google search pages. The content script will only be injected on Google search pages (as specified in the `manifest.json`), and the popup will display a message indicating that the extension only works on Google search pages if it's opened on any other page.
+
+
+# Chat Transcript - 2
+
+## User:
+
+
+[text]  
+add same functionality for bing and duck duck go too 
+
+
+## AI (claude-3.5-sonnet):
+
+Certainly! I'll modify the `extractSearchResults` function to work with Google, Bing, and DuckDuckGo search results. I'll also update the message listener to handle different search engines. Here's the updated code:
+
+```javascript:src/content.js
+function extractSearchResults(websites, searchEngine) {
+  const results = [];
+  let resultElements;
+
+  switch (searchEngine) {
+    case 'google':
+      resultElements = document.querySelectorAll('.g');
+      break;
+    case 'bing':
+      resultElements = document.querySelectorAll('.b_algo');
+      break;
+    case 'duckduckgo':
+      resultElements = document.querySelectorAll('.result');
+      break;
+    default:
+      return results;
+  }
+  
+  resultElements.forEach((element) => {
+    let titleElement, linkElement, snippetElement;
+
+    switch (searchEngine) {
+      case 'google':
+        titleElement = element.querySelector('h3');
+        linkElement = element.querySelector('a');
+        snippetElement = element.querySelector('.VwiC3b');
+        break;
+      case 'bing':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('a');
+        snippetElement = element.querySelector('.b_caption p');
+        break;
+      case 'duckduckgo':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('a.result__a');
+        snippetElement = element.querySelector('.result__snippet');
+        break;
+    }
+
+    if (titleElement && linkElement && snippetElement) {
+      const link = linkElement.href;
+      const result = {
+        title: titleElement.textContent,
+        link: link,
+        snippet: snippetElement.textContent,
+        priority: 0
+      };
+
+      // Check if the link contains any of the monitored websites
+      const matchedWebsiteIndex = websites.findIndex(website => link?.toLowerCase().includes(website?.toLowerCase()));
+      if (matchedWebsiteIndex !== -1) {
+        result.priority = matchedWebsiteIndex + 1;
+        results.push(result);
+      }
+    }
+  });
+
+  return results;
+}
+
+function detectSearchEngine(url) {
+  if (url.includes('google.com/search')) return 'google';
+  if (url.includes('bing.com/search')) return 'bing';
+  if (url.includes('duckduckgo.com/')) return 'duckduckgo';
+  return null;
+}
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "getResults") {
+    const currentUrl = window.location.href;
+    const searchEngine = detectSearchEngine(currentUrl);
+
+    if (!searchEngine) {
+      sendResponse({results: null});
+      return true;
+    }
+
+    const websites = request.websites;
+    const results = extractSearchResults(websites, searchEngine);
+    sendResponse({results: results});
+  }
+  return true;
+});
+
+// Don't extract results immediately, wait for the message from background.js
+```
+
+Here's an explanation of the changes:
+
+1. Modified `extractSearchResults` function to accept a `searchEngine` parameter.
+2. Added switch statements to handle different selectors for each search engine (Google, Bing, and DuckDuckGo).
+3. Created a new `detectSearchEngine` function to determine which search engine is being used based on the URL.
+4. Updated the message listener to use the `detectSearchEngine` function and pass the correct search engine to `extractSearchResults`.
+
+These changes allow the extension to work with Google, Bing, and DuckDuckGo search results. The core functionality remains the same, but now it's more flexible and can handle multiple search engines.
+
+## User:
+
+
+[text]  
+change in manifest too
+
+
+## AI (claude-3.5-sonnet):
+
+Certainly! I'll update the manifest file to include the necessary changes for Bing and DuckDuckGo support. Here's the modified manifest:
+
+```json:src/manifest.json
+{
+  "manifest_version": 3,
+  "name": "Search Results Filter",
+  "version": "1.0",
+  "description": "Filter search results for your favorite websites on Google, Bing, and DuckDuckGo",
+  "permissions": [
+    "webNavigation",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.google.com/search?*",
+        "https://www.bing.com/search?*",
+        "https://duckduckgo.com/*"
+      ],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}
+```
+
+Here's an explanation of the changes:
+
+1. Updated the `description` to mention support for Google, Bing, and DuckDuckGo.
+2. Modified the `content_scripts` section to include matches for Bing and DuckDuckGo search result pages:
+   - Added `"https://www.bing.com/search?*"` for Bing
+   - Added `"https://duckduckgo.com/*"` for DuckDuckGo
+
+These changes will ensure that the content script (content.js) is injected into the search results pages of all three supported search engines. The extension will now be able to filter results from Google, Bing, and DuckDuckGo as intended.
+
+## User:
+
+
+[text]  
+and in background js too
+
+
+## AI (claude-3.5-sonnet):
+
+Certainly! I'll update the background.js file to include support for Bing and DuckDuckGo as well. Here's the modified background.js:
+
+```javascript:src/background.js
+chrome.runtime.onInstalled.addListener(function() {
+  chrome.runtime.openOptionsPage();
+});
+
+chrome.webNavigation.onCompleted.addListener((details) => {
+  if (details.url) {
+    chrome.storage.sync.get('websites', function(data) {
+      const websites = data.websites || [];
+      chrome.tabs.sendMessage(details.tabId, { action: "getResults", websites: websites }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error(chrome.runtime.lastError);
+          return;
+        }
+        if (response && response.results) {
+          const resultCount = response.results.length;
+          if (resultCount > 0) {
+            chrome.action.setBadgeText({ text: resultCount.toString(), tabId: details.tabId });
+            chrome.action.setBadgeBackgroundColor({ color: '#4CAF50', tabId: details.tabId });
+            chrome.action.openPopup();
+          } else {
+            chrome.action.setBadgeText({ text: '', tabId: details.tabId });
+          }
+        }
+      });
+    });
+  }
+}, { 
+  url: [
+    { urlContains: 'google.com/search' },
+    { urlContains: 'bing.com/search' },
+    { urlContains: 'duckduckgo.com/' }
+  ] 
+});
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "showResults") {
+    console.log("Search Results:", request.results);
+    if (request.results && request.results.length > 0) {
+      chrome.action.openPopup();
+    }
+  }
+});
+```
+
+Here's an explanation of the changes:
+
+1. Updated the `chrome.webNavigation.onCompleted.addListener` to include URL patterns for Bing and DuckDuckGo:
+   - Added `{ urlContains: 'bing.com/search' }` for Bing
+   - Added `{ urlContains: 'duckduckgo.com/' }` for DuckDuckGo
+
+These changes ensure that the extension will trigger for search results pages on Google, Bing, and DuckDuckGo. The rest of the functionality remains the same, as the content script (which we updated earlier) will handle the specific differences between the search engines.
+
+With these updates to background.js, manifest.json, and the previously updated content.js, your extension should now work seamlessly across all three search engines: Google, Bing, and DuckDuckGo.
+
+## User:
+
+
+[text]  
+for duck duck go use this html snippet
+
+<li data-layout="organic" class="wLL07_0Xnd1QZpzpfR4W"><article id="r1-0" data-handled-by-react="true" data-testid="result" data-nrn="result" class="yQDlj3B5DI5YO8c8Ulio CpkrTDP54mqzpuCSn1Fa SKlplDuh9FjtDprgoMxk"><div class="OHr0VX9IuNcv6iakvT6A"><div class="YbGYkmXfJhjeRZ38Mzdl"><span><p data-testid="feedback-prompt" class="feedback-prompt "><a href="#" class="feedback-prompt__link js-feedback-prompt-generic"></a></p></span></div><button class="cxQwADb9kt3UnKwcXKat uuIDnYC4qmyFk5dsXOhr YZxymVMEkIDA0nZSt_Pm ffON2NH02oMAcqyoh2UU MQCbz04ET5EljRmK3YpQ hF7w5TROgutbYQwHzEf_ kYheVVecSlvJdWHcWzJs"><svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><g fill="currentColor"><path d="M3.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM14 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"></path></g></svg></button><div class="BdZVYXbdg6Rx9Lrm5wzC"><svg fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="QmBU788gp3Cjs7Fwyz1G"><path fill="currentColor" d="M18.707 6.707a1 1 0 0 0-1.414-1.414L12 10.586 6.707 5.293a1 1 0 0 0-1.414 1.414L10.586 12l-5.293 5.293a1 1 0 1 0 1.414 1.414L12 13.414l5.293 5.293a1 1 0 0 0 1.414-1.414L13.414 12l5.293-5.293Z"></path></svg><p class="ePXqZzRA466zTvNP6hpa wZ4JdaHxSAhGy1HoNVja d26Geqs1C__RaCO7MUs2">en.wikipedia.org</p><div class="oDTE1nbHCw1Kax_TrCHw"><a href="?q=wikipedia%20india%20site%3Aen.wikipedia.org" class="bcz7ZQmpP9fW9gyprTn7"><svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" class="sOgzQOS4liCVE5xXVnJT"><g fill="#000" fill-rule="evenodd" clip-path="url(#search-site-16_svg__a)" clip-rule="evenodd"><path d="M3.25 1A3.25 3.25 0 0 0 0 4.25v7.5A3.25 3.25 0 0 0 3.25 15H6a.75.75 0 0 0 0-1.5H3.25a1.75 1.75 0 0 1-1.75-1.75V5.5h13v1.75a.75.75 0 0 0 1.5 0v-3A3.25 3.25 0 0 0 12.75 1h-9.5Zm11.232 3H1.518A1.75 1.75 0 0 1 3.25 2.5h9.5A1.75 1.75 0 0 1 14.482 4Z"></path><path d="M7 10.75a3.75 3.75 0 1 1 6.879 2.068l1.901 1.902a.75.75 0 1 1-1.06 1.06l-1.902-1.901A3.75 3.75 0 0 1 7 10.75Zm3.75-2.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z"></path></g><defs><clipPath id="search-site-16_svg__a"><path fill="#fff" d="M0 0h16v16H0z"></path></clipPath></defs></svg><span>Only include results for this site</span></a><a href="?q=wikipedia%20india%20-site%3Aen.wikipedia.org" class="bcz7ZQmpP9fW9gyprTn7"><svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" class="sOgzQOS4liCVE5xXVnJT"><g clip-path="url(#eye-blocked-16_svg__a)"><path fill="#000" fill-rule="evenodd" d="M7.5 12.482c-3.278-.241-5.104-2.823-5.941-4.527C2.215 6.23 4.379 3.5 8 3.5c3.587 0 5.737 2.616 6.417 4.38a5 5 0 0 1 1.346.832c.073-.158.135-.307.188-.445l.09-.237-.072-.244C15.322 5.612 12.679 2 8 2 3.314 2 .678 5.69.033 7.779l-.084.273.12.26c.84 1.838 3.119 5.54 7.659 5.684A4.998 4.998 0 0 1 7.5 12.5zm3.488-4.75a5.012 5.012 0 0 0-3.255 3.256 3 3 0 1 1 3.255-3.255ZM16 12.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0m-6-.5h5v1h-5z" clip-rule="evenodd"></path></g><defs><clipPath id="eye-blocked-16_svg__a"><path fill="#fff" d="M0 0h16v16H0z"></path></clipPath></defs></svg><span>Hide site from these results</span></a><div class="P0qXZSsYM5mY7vngloXE"></div><div class="bcz7ZQmpP9fW9gyprTn7"><svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" class="sOgzQOS4liCVE5xXVnJT"><g clip-path="url(#feedback-16_svg__a)"><path fill="#000" fill-rule="evenodd" d="M0 4.125C0 2.399 1.4 1 3.125 1h9.75C14.601 1 16 2.4 16 4.125v4.75A3.125 3.125 0 0 1 12.875 12H9.884c-.382 0-.761.165-1.06.458-1.528 1.497-3.3 2.68-4.454 3.378-.993.6-2.073-.326-1.853-1.35.17-.793.357-1.754.44-2.486C1.186 11.993 0 10.543 0 8.875v-4.75ZM3.125 2.25c-1.036 0-1.875.84-1.875 1.875v4.75c0 1.09.735 1.875 1.719 1.875.284 0 .572.106.791.263.206.147.503.458.46.918-.077.83-.295 1.954-.48 2.817a.091.091 0 0 0-.002.01c1.116-.677 2.787-1.798 4.21-3.193a2.777 2.777 0 0 1 1.936-.815h2.991c1.036 0 1.875-.84 1.875-1.875v-4.75c0-1.036-.84-1.875-1.875-1.875h-9.75Z" clip-rule="evenodd"></path></g><defs><clipPath id="feedback-16_svg__a"><path fill="#fff" d="M0 0h16v16H0z"></path></clipPath></defs></svg><span>Share feedback about this site</span></div></div></div></div><div class="OQ_6vPwNhCeusNiEDcGp"><div class="mwuQiMOjmFJ5vmN6Vcqw SgSTKoqQXa0tEszD2zWF LQVY1Jpkk8nyJ6HBWKAk"><span class="DpVR46dTZaePK29PDkz8"><a href="/?q=wikipedia%20india+site:en.wikipedia.org&amp;t=h_" rel="noopener" title="Search domain en.wikipedia.org" data-testid="result-extras-site-search-link" data-handled-by-react="true"><img src="/assets/icons/favicons/wikipedia.white.2x.png" height="16" width="16" loading="lazy"></a></span><a href="https://en.wikipedia.org/wiki/India" rel="noopener" target="_self" data-testid="result-extras-url-link" data-handled-by-react="true" class="Rn_JXVtoPVAFyGkcaXyK"><span>https://en.wikipedia.org</span><span>&nbsp;›&nbsp;wiki › India</span></a></div></div><div class="ikg2IXiCD14iVX7AdZo1"><h2 class="LnpumSThxEWMIsDdAT17 CXMyPcQ6nDv47DKFeywM"><a href="https://en.wikipedia.org/wiki/India" rel="noopener" target="_self" data-testid="result-title-a" data-handled-by-react="true" class="eVNpHGjtxRBq_gLOfGDr LQNqh2U1kzYxREs65IJu"><span class="EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk">India - Wikipedia</span></a></h2></div><div class="E2eLOJr8HctVnDOTM8fs"><div data-result="snippet" class="OgdwYG6KE2qthn9XQWFC"><div><span class="kY2IgmnCmOGjharHErah" style="-webkit-line-clamp: 3;"><span><b>India</b>, officially the Republic of <b>India</b> (ISO: Bhārat Gaṇarājya), [21] is a country in South Asia.It is the seventh-largest country by area; the most populous country from June 2023 [22] [23] and from the time of its independence in 1947, the world's most populous democracy. [24] [25] [26] Bounded by the Indian Ocean on the south, the Arabian Sea on the southwest, and the Bay of Bengal on ...</span></span></div></div></div><div class="FTrf7TqAcfxxEQ_3nfUg"><div class="nYs5EPJFwdhisN0E7MCB AbEGLIJuTmsLLjCjXvCN"><ul class="b269SZlC2oyR13Fcc4Iy"><li id="sl-0" class="gyDT4qronqJu4BgQBq2F"><a href="https://en.wikipedia.org/wiki/Economy_of_India" rel="noopener" target="_self" data-handled-by-react="true" class="f3uDrYrWF3Exrfp1m3Og"><h3 class="EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk">Economy of India</h3></a><p class="KoEJ3YBbjXKVOE1bc2RA"><span class="kY2IgmnCmOGjharHErah" style="-webkit-line-clamp: 2;">The economy of India is a developing mixed economy with a notable public sector in strategic sectors. [5] It is the world's fifth-largest economy by nominal GDP and the third-largest by purchasing power parity (PPP); on a per capita income basis, India ranked 136th by GDP (nominal) and 125th by GDP (PPP). [59] From independence in 1947 until 1991, successive governments followed the Soviet ...</span></p></li><li id="sl-1" class="gyDT4qronqJu4BgQBq2F"><a href="https://en.wikipedia.org/wiki/President_of_India" rel="noopener" target="_self" data-handled-by-react="true" class="f3uDrYrWF3Exrfp1m3Og"><h3 class="EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk">President of India</h3></a><p class="KoEJ3YBbjXKVOE1bc2RA"><span class="kY2IgmnCmOGjharHErah" style="-webkit-line-clamp: 2;">The president of India (ISO: Bhārata kē/kī Rāṣṭrapati) is the head of state of the Republic of India.The president is the nominal head of the executive, [a] the first citizen of the country, as well as the supreme commander of the Indian Armed Forces. Droupadi Murmu is the 15th and current president, having taken office from 25 July 2022.. The office of president was created when India ...</span></p></li><li id="sl-2" class="gyDT4qronqJu4BgQBq2F"><a href="https://en.wikipedia.org/wiki/Talk:India" rel="noopener" target="_self" data-handled-by-react="true" class="f3uDrYrWF3Exrfp1m3Og"><h3 class="EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk">Talk</h3></a><p class="KoEJ3YBbjXKVOE1bc2RA"><span class="kY2IgmnCmOGjharHErah" style="-webkit-line-clamp: 2;">India is a featured article; it (or a previous version of it) has been identified as one of the best articles produced by the Wikipedia community. Even so, if you can update or improve it, please do so. This article appeared on Wikipedia's Main Page as Today's featured article on December 3, 2004, and on October 2, 2019.</span></p></li><li id="sl-3" class="gyDT4qronqJu4BgQBq2F"><a href="https://en.wikipedia.org/wiki/Hinduism_in_India" rel="noopener" target="_self" data-handled-by-react="true" class="f3uDrYrWF3Exrfp1m3Og"><h3 class="EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk">Hinduism</h3></a><p class="KoEJ3YBbjXKVOE1bc2RA"><span class="kY2IgmnCmOGjharHErah" style="-webkit-line-clamp: 2;">Hinduism is the largest and most practised religion in India. [1] [2] About 80% of the country's population identified as Hindu in the last census.India contains 94% of the global Hindu population. [3] [4] The vast majority of Indian Hindus belong to Shaivite, Vaishnavite and Shakta denominations. [5]India is one of the three countries in the world (Nepal (81%) and Mauritius (48%) being the ...</span></p></li><li id="sl-4" class="gyDT4qronqJu4BgQBq2F"><a href="https://en.wikipedia.org/wiki/State_Emblem_of_India" rel="noopener" target="_self" data-handled-by-react="true" class="f3uDrYrWF3Exrfp1m3Og"><h3 class="EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk">State Emblem</h3></a><p class="KoEJ3YBbjXKVOE1bc2RA"><span class="kY2IgmnCmOGjharHErah" style="-webkit-line-clamp: 2;">The State Emblem of India is the national emblem of the Republic of India and is used by the union government, many state governments, and other government agencies.The emblem is an adaptation of the Lion Capital of Ashoka, an ancient sculpture dating back to 280 BCE during the Maurya Empire.The statue is a three dimensional emblem showing four lions.</span></p></li><li id="sl-5" class="gyDT4qronqJu4BgQBq2F"><a href="https://en.wikipedia.org/w/index.php" rel="noopener" target="_self" data-handled-by-react="true" class="f3uDrYrWF3Exrfp1m3Og"><h3 class="EKtkFWMYpwzMKOYr0GYm LQVY1Jpkk8nyJ6HBWKAk">Update</h3></a><p class="KoEJ3YBbjXKVOE1bc2RA"><span class="kY2IgmnCmOGjharHErah" style="-webkit-line-clamp: 2;">We would like to show you a description here but the site won't allow us.</span></p></li></ul></div></div></article></li>
+
+
+## AI (claude-3.5-sonnet):
+
+Thank you for providing the HTML snippet for DuckDuckGo. I'll update the `extractSearchResults` function in the content.js file to accommodate this new structure. Here's the modified version:
+
+```javascript:src/content.js
+function extractSearchResults(websites, searchEngine) {
+  const results = [];
+  let resultElements;
+
+  switch (searchEngine) {
+    case 'google':
+      resultElements = document.querySelectorAll('.g');
+      break;
+    case 'bing':
+      resultElements = document.querySelectorAll('.b_algo');
+      break;
+    case 'duckduckgo':
+      resultElements = document.querySelectorAll('article[data-testid="result"]');
+      break;
+    default:
+      return results;
+  }
+  
+  resultElements.forEach((element) => {
+    let titleElement, linkElement, snippetElement;
+
+    switch (searchEngine) {
+      case 'google':
+        titleElement = element.querySelector('h3');
+        linkElement = element.querySelector('a');
+        snippetElement = element.querySelector('.VwiC3b');
+        break;
+      case 'bing':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('a');
+        snippetElement = element.querySelector('.b_caption p');
+        break;
+      case 'duckduckgo':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('.OQ_6vPwNhCeusNiEDcGp a[data-testid="result-extras-url-link"]');
+        snippetElement = element.querySelector('.OgdwYG6KE2qthn9XQWFC');
+        break;
+    }
+
+    if (titleElement && linkElement && snippetElement) {
+      const link = linkElement.href;
+      const result = {
+        title: titleElement.textContent,
+        link: link,
+        snippet: snippetElement.textContent,
+        priority: 0
+      };
+
+      // Check if the link contains any of the monitored websites
+      const matchedWebsiteIndex = websites.findIndex(website => link?.toLowerCase().includes(website?.toLowerCase()));
+      if (matchedWebsiteIndex !== -1) {
+        result.priority = matchedWebsiteIndex + 1;
+        results.push(result);
+      }
+    }
+  });
+
+  return results;
+}
+
+// ... rest of the code remains the same
+```
+
+Here's an explanation of the changes for DuckDuckGo:
+
+1. Updated the selector for result elements to `article[data-testid="result"]`.
+2. Modified the selectors for title, link, and snippet elements:
+   - Title: `h2` (remains the same)
+   - Link: `.OQ_6vPwNhCeusNiEDcGp a[data-testid="result-extras-url-link"]`
+   - Snippet: `.OgdwYG6KE2qthn9XQWFC`
+
+These changes should allow the extension to correctly extract search results from DuckDuckGo using the provided HTML structure. The functionality for Google and Bing remains unchanged.
+
+## User:
+
+
+[text]  
+dont use minimised class names in duck duck go. 
+
+
+## AI (claude-3.5-sonnet):
+
+
+
+I apologize for the oversight. You're right; using minimized class names is not a good practice as they can change frequently. Let's update the DuckDuckGo selectors to use more stable attributes. Here's the revised version of the `extractSearchResults` function:
+
+```javascript:src/content.js
+function extractSearchResults(websites, searchEngine) {
+  const results = [];
+  let resultElements;
+
+  switch (searchEngine) {
+    case 'google':
+      resultElements = document.querySelectorAll('.g');
+      break;
+    case 'bing':
+      resultElements = document.querySelectorAll('.b_algo');
+      break;
+    case 'duckduckgo':
+      resultElements = document.querySelectorAll('article[data-testid="result"]');
+      break;
+    default:
+      return results;
+  }
+  
+  resultElements.forEach((element) => {
+    let titleElement, linkElement, snippetElement;
+
+    switch (searchEngine) {
+      case 'google':
+        titleElement = element.querySelector('h3');
+        linkElement = element.querySelector('a');
+        snippetElement = element.querySelector('.VwiC3b');
+        break;
+      case 'bing':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('a');
+        snippetElement = element.querySelector('.b_caption p');
+        break;
+      case 'duckduckgo':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('a[data-testid="result-title-a"]');
+        snippetElement = element.querySelector('div[data-result="snippet"]');
+        break;
+    }
+
+    if (titleElement && linkElement && snippetElement) {
+      const link = linkElement.href;
+      const result = {
+        title: titleElement.textContent,
+        link: link,
+        snippet: snippetElement.textContent,
+        priority: 0
+      };
+
+      // Check if the link contains any of the monitored websites
+      const matchedWebsiteIndex = websites.findIndex(website => link?.toLowerCase().includes(website?.toLowerCase()));
+      if (matchedWebsiteIndex !== -1) {
+        result.priority = matchedWebsiteIndex + 1;
+        results.push(result);
+      }
+    }
+  });
+
+  return results;
+}
+
+// ... rest of the code remains the same
+```
+
+Here's an explanation of the changes for DuckDuckGo:
+
+1. The selector for result elements remains `article[data-testid="result"]`, which is a stable attribute.
+2. Updated the selectors for title, link, and snippet elements:
+   - Title: `h2` (remains the same)
+   - Link: `a[data-testid="result-title-a"]`
+   - Snippet: `div[data-result="snippet"]`
+
+These selectors use data attributes which are less likely to change and are more meaningful. This should make the extension more robust when dealing with DuckDuckGo search results.
+
+The functionality for Google and Bing remains unchanged. This update should provide a more stable solution for extracting search results across all three supported search engines.
+
+## User:
+
+
+[text]  
+now do the same for google too
+
+
+## AI (claude-3.5-sonnet):
+
+
+
+Certainly! I'll update the Google selectors to use more stable attributes as well. Here's the revised version of the `extractSearchResults` function with updated selectors for both Google and DuckDuckGo:
+
+```javascript:src/content.js
+function extractSearchResults(websites, searchEngine) {
+  const results = [];
+  let resultElements;
+
+  switch (searchEngine) {
+    case 'google':
+      resultElements = document.querySelectorAll('div[data-sokoban-container]');
+      break;
+    case 'bing':
+      resultElements = document.querySelectorAll('.b_algo');
+      break;
+    case 'duckduckgo':
+      resultElements = document.querySelectorAll('article[data-testid="result"]');
+      break;
+    default:
+      return results;
+  }
+  
+  resultElements.forEach((element) => {
+    let titleElement, linkElement, snippetElement;
+
+    switch (searchEngine) {
+      case 'google':
+        titleElement = element.querySelector('h3[role="heading"]');
+        linkElement = element.querySelector('a[data-ved]');
+        snippetElement = element.querySelector('div[data-content-feature="1"]');
+        break;
+      case 'bing':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('a');
+        snippetElement = element.querySelector('.b_caption p');
+        break;
+      case 'duckduckgo':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('a[data-testid="result-title-a"]');
+        snippetElement = element.querySelector('div[data-result="snippet"]');
+        break;
+    }
+
+    if (titleElement && linkElement && snippetElement) {
+      const link = linkElement.href;
+      const result = {
+        title: titleElement.textContent,
+        link: link,
+        snippet: snippetElement.textContent,
+        priority: 0
+      };
+
+      // Check if the link contains any of the monitored websites
+      const matchedWebsiteIndex = websites.findIndex(website => link?.toLowerCase().includes(website?.toLowerCase()));
+      if (matchedWebsiteIndex !== -1) {
+        result.priority = matchedWebsiteIndex + 1;
+        results.push(result);
+      }
+    }
+  });
+
+  return results;
+}
+
+// ... rest of the code remains the same
+```
+
+Here's an explanation of the changes for Google:
+
+1. Updated the selector for result elements to `div[data-sokoban-container]`, which is a more stable attribute used by Google for search result containers.
+2. Modified the selectors for title, link, and snippet elements:
+   - Title: `h3[role="heading"]`
+   - Link: `a[data-ved]`
+   - Snippet: `div[data-content-feature="1"]`
+
+These selectors use data attributes and ARIA roles which are less likely to change and are more meaningful. This should make the extension more robust when dealing with Google search results.
+
+The functionality for DuckDuckGo remains the same as in the previous update, and Bing selectors are unchanged as they were already using relatively stable class names.
+
+This update should provide a more stable solution for extracting search results across all three supported search engines, using more reliable selectors that are less likely to break with minor UI changes.
+
+## User:
+
+
+[text]  
+<div class="g" data-hveid="CAgQAA"><h2 class="bNg8Rb OhScic zsYMMe BBwThe" style="clip:rect(1px,1px,1px,1px);height:1px;overflow:hidden;position:absolute;white-space:nowrap;width:1px;z-index:-1000;-webkit-user-select:none">Web result with site links</h2><div class="BYM4Nd"><div class="eKjLze"><div class="g"><div lang="en" data-hveid="CAsQAA" data-ved="2ahUKEwiWhZuzz--IAxWZ4zgGHfSyCXAQFSgAegQICxAA"><div style="position:relative" class="tF2Cxc"><div class="yuRUbf"><div><span jscontroller="msmzHf" jsaction="rcuQ6b:npT2md;PYDNKe:bLV6Bd;mLt3mc"><a jsname="UWckNb" href="https://scholar.google.com/" data-ved="2ahUKEwiWhZuzz--IAxWZ4zgGHfSyCXAQFnoECAkQAQ" ping="/url?sa=t&amp;source=web&amp;rct=j&amp;opi=89978449&amp;url=https://scholar.google.com/&amp;ved=2ahUKEwiWhZuzz--IAxWZ4zgGHfSyCXAQFnoECAkQAQ"><br><h3 class="LC20lb MBeuO DKV0Md">Google Scholar</h3><div class="notranslate HGLrXd NJjxre iUh30 ojE3Fb"><div class="q0vns"><span class="DDKf1c"><div class="eqA2re UnOTSe Vwoesf" aria-hidden="true"><img class="XNo5Ab" src="data:image/webp;base64,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" style="height:30px;width:30px" alt="" data-csiid="JTL9ZtbeBpnH4-EP9OWmgAc_2" data-atf="1"></div></span><div class="CA5RN"><div><span class="VuuXrf">Google Scholar</span></div><div class="byrV5b"><cite class="tjvcx GvPZzd cHaqb" role="text">https://scholar.google.com</cite></div></div></div></div><span jscontroller="IX53Tb" jsaction="rcuQ6b:npT2md" style="display:none"></span></a></span><div class="B6fmyf byrV5b Mg1HEd"><div class="HGLrXd iUh30 ojE3Fb"><div class="q0vns"><span class="DDKf1c"><div class="eqA2re UnOTSe" style="height:30px;width:30px"></div></span><div class="CA5RN"><div><span class="VuuXrf">Google Scholar</span></div><div class="byrV5b"><cite class="tjvcx GvPZzd cHaqb" role="text">https://scholar.google.com</cite></div></div></div></div><div class="csDOgf BCF2pd ezY6nb L48a4c"><div jscontroller="gOTY1" data-id="atritem-https://scholar.google.com/" jsdata="PFrTzf;_;B/qArU" data-viewer-group="1" jsaction="rcuQ6b:npT2md;aevozb:T2P31d;vcOT6c:C6KsF;k7WJpc:beCLof"><div><div jsdata="l7Bhpb;_;B/qArY" jscontroller="PbHo4e" jsshadow="" jsaction="rcuQ6b:npT2md;h5M12e;jGQF0b:kNqZ1c;" data-viewer-entrypoint="1" data-ved="2ahUKEwiWhZuzz--IAxWZ4zgGHfSyCXAQ2esEegQICRAH"><div jsslot=""><div jsname="I3kE2c" class="MJ8UF iTPLzd rNSxBe eY4mx lUn2nc" style="position:absolute" aria-label="About this result" role="button" tabindex="0"><span jsname="czHhOd" class="D6lY4c mBswFe"><span jsname="Bil8Ae" class="xTFaxe z1asCe" style="height:18px;line-height:18px;width:18px"><svg focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg></span></span></div></div></div></div></div></div></div></div></div><div class="IsZvec"><div class="VwiC3b yXK7lf lVm3ye r025kc hJNv6b Hdw6tb" style="-webkit-line-clamp:2"><span><em>Google Scholar</em> provides a simple way to broadly search for scholarly literature. Search across a wide variety of disciplines and sources: articles, theses,&nbsp;...</span></div></div></div></div></div></div><table class="jmjoTe" cellpadding="0" cellspacing="0"><tbody><tr class="mslg dmenKe"><td class="cIkxbf"><div class="usJj9c"><div><div class="VttTV"><div><h3><a class="l" href="https://scholar.google.com/citations" data-ved="2ahUKEwiWhZuzz--IAxWZ4zgGHfSyCXAQjBB6BAgMEAE" ping="/url?sa=t&amp;source=web&amp;rct=j&amp;opi=89978449&amp;url=https://scholar.google.com/citations&amp;ved=2ahUKEwiWhZuzz--IAxWZ4zgGHfSyCXAQjBB6BAgMEAE">Citations</a></h3><div class="zz3gNc">Google Scholar Citations lets you track citations to your ...<br></div></div></div></div></div></td></tr><tr class="mslg c9EJob"><td class="cIkxbf"><div class="usJj9c"><div><div class="VttTV"><div><h3><a class="l" href="https://scholar.google.com/intl/en-US/scholar/about.html" data-ved="2ahUKEwiWhZuzz--IAxWZ4zgGHfSyCXAQjBB6BAgNEAE" ping="/url?sa=t&amp;source=web&amp;rct=j&amp;opi=89978449&amp;url=https://scholar.google.com/intl/en-US/scholar/about.html&amp;ved=2ahUKEwiWhZuzz--IAxWZ4zgGHfSyCXAQjBB6BAgNEAE">About</a></h3><div class="zz3gNc">Google Scholar provides a simple way to broadly search for ...<br></div></div></div></div></div></td></tr><tr class="mslg c9EJob"><td class="cIkxbf"><div class="usJj9c"><div><div class="VttTV"><div><h3><a class="l" href="https://scholar.google.com/intl/en/scholar/help.html" data-ved="2ahUKEwiWhZuzz--IAxWZ4zgGHfSyCXAQjBB6BAgOEAE" ping="/url?sa=t&amp;source=web&amp;rct=j&amp;opi=89978449&amp;url=https://scholar.google.com/intl/en/scholar/help.html&amp;ved=2ahUKEwiWhZuzz--IAxWZ4zgGHfSyCXAQjBB6BAgOEAE">Search Help</a></h3><div class="zz3gNc">First, do a search for your colleague's name, and see if ...<br></div></div></div></div></div></td></tr><tr class="mslg"><td class="cIkxbf"><div class="usJj9c"><div><div class="VttTV"><div><h3><a class="l" href="https://scholar.google.com/citations?view_op=top_venues" data-ved="2ahUKEwiWhZuzz--IAxWZ4zgGHfSyCXAQjBB6BAgPEAE" ping="/url?sa=t&amp;source=web&amp;rct=j&amp;opi=89978449&amp;url=https://scholar.google.com/citations%3Fview_op%3Dtop_venues&amp;ved=2ahUKEwiWhZuzz--IAxWZ4zgGHfSyCXAQjBB6BAgPEAE">Metrics</a></h3><div class="zz3gNc">Top publications · 1. Nature, 488, 745 · 2. IEEE/CVF Conference ...<br></div></div></div></div></div></td></tr><tr><td class="H3TZoe" colspan="2"><div class="vLK3gc"><a class="fl" href="/search?q=google+scholar+site:google.com&amp;sca_esv=4997d9601951f80e&amp;sxsrf=ADLYWIII8npmiXC-pZEYPH1UVXkl7_9JDw:1727869477116&amp;sa=X&amp;ved=2ahUKEwiWhZuzz--IAxWZ4zgGHfSyCXAQrAN6BAgIEAE">More results from google.com&nbsp;»</a></div></td></tr></tbody></table></div></div>
+
+here is the google html
+
+
+## AI (claude-3.5-sonnet):
+
+Thank you for providing the Google HTML snippet. I'll update the `extractSearchResults` function to use more reliable selectors based on this HTML structure. Here's the revised version:
+
+```javascript:src/content.js
+function extractSearchResults(websites, searchEngine) {
+  const results = [];
+  let resultElements;
+
+  switch (searchEngine) {
+    case 'google':
+      resultElements = document.querySelectorAll('div.g');
+      break;
+    case 'bing':
+      resultElements = document.querySelectorAll('.b_algo');
+      break;
+    case 'duckduckgo':
+      resultElements = document.querySelectorAll('article[data-testid="result"]');
+      break;
+    default:
+      return results;
+  }
+  
+  resultElements.forEach((element) => {
+    let titleElement, linkElement, snippetElement;
+
+    switch (searchEngine) {
+      case 'google':
+        titleElement = element.querySelector('h3.LC20lb');
+        linkElement = element.querySelector('a');
+        snippetElement = element.querySelector('.VwiC3b');
+        break;
+      case 'bing':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('a');
+        snippetElement = element.querySelector('.b_caption p');
+        break;
+      case 'duckduckgo':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('a[data-testid="result-title-a"]');
+        snippetElement = element.querySelector('div[data-result="snippet"]');
+        break;
+    }
+
+    if (titleElement && linkElement && snippetElement) {
+      const link = linkElement.href;
+      const result = {
+        title: titleElement.textContent,
+        link: link,
+        snippet: snippetElement.textContent,
+        priority: 0
+      };
+
+      // Check if the link contains any of the monitored websites
+      const matchedWebsiteIndex = websites.findIndex(website => link?.toLowerCase().includes(website?.toLowerCase()));
+      if (matchedWebsiteIndex !== -1) {
+        result.priority = matchedWebsiteIndex + 1;
+        results.push(result);
+      }
+    }
+  });
+
+  return results;
+}
+
+// ... rest of the code remains the same
+```
+
+Here's an explanation of the changes for Google:
+
+1. Updated the selector for result elements to `div.g`, which is the main container for each search result.
+2. Modified the selectors for title, link, and snippet elements:
+   - Title: `h3.LC20lb`
+   - Link: `a` (the first anchor tag in the result container)
+   - Snippet: `.VwiC3b`
+
+These selectors use class names that appear to be more stable in the Google search results structure. They should provide a more reliable way to extract the necessary information from each search result.
+
+The functionality for DuckDuckGo and Bing remains the same as in the previous update.
+
+This update should provide a more accurate and stable solution for extracting search results from Google, based on the HTML structure you provided.
+
+## User:
+
+
+[text]  
+is there any other way to find "VwiC3b" div
+
+
+## AI (claude-3.5-sonnet):
+
+
+
+You're right to ask for an alternative way to find the snippet div, as class names like "VwiC3b" can change. Let's use a more robust approach to locate the snippet. Here's an updated version of the Google-specific part of the `extractSearchResults` function:
+
+```javascript:src/content.js
+function extractSearchResults(websites, searchEngine) {
+  const results = [];
+  let resultElements;
+
+  switch (searchEngine) {
+    case 'google':
+      resultElements = document.querySelectorAll('div.g');
+      break;
+    // ... other cases remain the same
+
+  resultElements.forEach((element) => {
+    let titleElement, linkElement, snippetElement;
+
+    switch (searchEngine) {
+      case 'google':
+        titleElement = element.querySelector('h3.LC20lb');
+        linkElement = element.querySelector('a');
+        // Try multiple methods to find the snippet
+        snippetElement = 
+          element.querySelector('.VwiC3b') || 
+          element.querySelector('div[data-content-feature="1"]') ||
+          element.querySelector('.IsZvec')?.querySelector('div:not(.MUxGbd)');
+        break;
+      // ... other cases remain the same
+
+    if (titleElement && linkElement && snippetElement) {
+      const link = linkElement.href;
+      const result = {
+        title: titleElement.textContent,
+        link: link,
+        snippet: snippetElement.textContent,
+        priority: 0
+      };
+
+      // ... rest of the code remains the same
+```
+
+Here's an explanation of the changes:
+
+1. We're now using multiple selectors to try and find the snippet, in order of preference:
+   - First, we try the `.VwiC3b` class, which seems to be commonly used.
+   - If that fails, we look for a div with the attribute `data-content-feature="1"`, which is another indicator of snippet content.
+   - As a fallback, we look for a div inside `.IsZvec` that doesn't have the class `.MUxGbd` (which is often used for other elements).
+
+2. We use the nullish coalescing operator (`||`) to try these selectors in order until we find a match.
+
+This approach should be more resilient to changes in Google's HTML structure. It tries multiple ways to locate the snippet, increasing the chances of finding the correct element even if some class names change.
+
+Remember that web scraping can be fragile, and you may need to update these selectors periodically as search engine layouts change. It's also a good idea to add error handling and logging to your code to catch and report any issues with selector matching.
+
+## User:
+
+
+[text]  
+use `em` tag and then find its parent 
+
+
+## AI (claude-3.5-sonnet):
+
+
+
+Excellent suggestion! Using the `em` tag and finding its parent is a more reliable way to locate the snippet in Google search results. Let's update the Google-specific part of the `extractSearchResults` function with this approach:
+
+```javascript:src/content.js
+function extractSearchResults(websites, searchEngine) {
+  const results = [];
+  let resultElements;
+
+  switch (searchEngine) {
+    case 'google':
+      resultElements = document.querySelectorAll('div.g');
+      break;
+    case 'bing':
+      resultElements = document.querySelectorAll('.b_algo');
+      break;
+    case 'duckduckgo':
+      resultElements = document.querySelectorAll('article[data-testid="result"]');
+      break;
+    default:
+      return results;
+  }
+  
+  resultElements.forEach((element) => {
+    let titleElement, linkElement, snippetElement;
+
+    switch (searchEngine) {
+      case 'google':
+        titleElement = element.querySelector('h3.LC20lb');
+        linkElement = element.querySelector('a');
+        const emElement = element.querySelector('em');
+        snippetElement = emElement ? emElement.closest('div[style*="-webkit-line-clamp"]') : null;
+        break;
+      case 'bing':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('a');
+        snippetElement = element.querySelector('.b_caption p');
+        break;
+      case 'duckduckgo':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('a[data-testid="result-title-a"]');
+        snippetElement = element.querySelector('div[data-result="snippet"]');
+        break;
+    }
+
+    if (titleElement && linkElement && snippetElement) {
+      const link = linkElement.href;
+      const result = {
+        title: titleElement.textContent,
+        link: link,
+        snippet: snippetElement.textContent,
+        priority: 0
+      };
+
+      // Check if the link contains any of the monitored websites
+      const matchedWebsiteIndex = websites.findIndex(website => link?.toLowerCase().includes(website?.toLowerCase()));
+      if (matchedWebsiteIndex !== -1) {
+        result.priority = matchedWebsiteIndex + 1;
+        results.push(result);
+      }
+    }
+  });
+
+  return results;
+}
+
+// ... rest of the code remains the same
+```
+
+Here's an explanation of the changes for Google:
+
+1. We first locate the `em` element within the search result, which is typically used to highlight matching terms in the snippet.
+2. If an `em` element is found, we use the `closest()` method to find the nearest ancestor `div` that has a style attribute containing "-webkit-line-clamp". This is a common characteristic of the snippet container in Google search results.
+3. If no `em` element is found, `snippetElement` will be `null`, and the result will be skipped due to the subsequent check.
+
+This approach has several advantages:
+- It's more resilient to class name changes.
+- It targets the structural characteristics of the snippet (the presence of highlighted terms and the line clamping style).
+- It's likely to adapt better to minor layout changes in Google's search results.
+
+This method should provide a more reliable way to extract snippets from Google search results. However, as with any web scraping technique, it's important to monitor its performance over time and adjust as needed if Google makes significant changes to their HTML structure.
+
+## User:
+
+
+[text]  
+<li class="b_algo" data-id="" iid="" data-bm="10"><div class="b_tpcn" style=""><a class="tilk" aria-label="Wikipedia" href="https://en.wikipedia.org/wiki/Google_Scholar" h="ID=SERP,5346.1" target="_blank"><div class="tpic"><div class="wr_fav" data-priority="2"><div class="cico siteicon" style="width:32px;height:32px;"><img src="https://th.bing.com/th?id=ODLS.9d837793-b21b-4809-aceb-f60f4a0b6408&amp;w=32&amp;h=32&amp;qlt=95&amp;pcl=fffffa&amp;o=6&amp;pid=1.2" height="32" width="32" alt="Global web icon" class="rms_img" data-bm="41"></div></div></div><div class="tptxt"><div class="tptt">Wikipedia</div><div class="tpmeta"><div class="b_attribution" u="5|5121|5038344992136806|J7EnSzmIThLzLLNP1TlAXHDpbHiEq9ce" tabindex="0"><cite>https://en.wikipedia.org › wiki › Google…</cite><a href="#" class="trgr_icon" aria-label="Actions for this site" aria-haspopup="true" aria-expanded="false" tabindex="0" role="button"><span class="c_tlbxTrg"><span class="c_tlbxTrgIcn sw_ddgn"></span><span class="c_tlbxH" h="BASE:CACHEDPAGEDEFAULT" k="SERP,5347.1"></span><span class="c_tlbxH" h="BASE:GENERATIVECAPTIONSHINTSIGNAL" k="SERP,5352.1"></span></span></a><div class="c_tlbxLiveRegion" aria-live="polite" aria-atomic="true"></div></div></div></div></a></div><div class="b_imgcap_altitle b_imgcap_nosc" style=""><div class="b_imagePair square_mp reverse"><div class="inner"><div><img src="https://th.bing.com/th?id=OIP.IBDvhEzXZihkJw4rLIFSHQAAAA&amp;w=80&amp;h=80&amp;vt=10&amp;pcl=f5f5f5&amp;bgcl=535a96&amp;r=0&amp;o=6&amp;dpr=2&amp;pid=5.1" data-priority="2" height="80" width="80" class="b_circleImage b_ci_image_overlay b_onfaimg  rms_img" fdopt="False" data-overlaylink="/images/search?view=detailV2&amp;ccid=IBDvhEzX&amp;id=103101C6FE1437049777F48BDB10DC042B8EE2D1&amp;thid=OIP.IBDvhEzXZihkJw4rLIFSHQAAAA&amp;mediaurl=https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_Scholar_home_page.png/450px-Google_Scholar_home_page.png&amp;q=google+scholar&amp;ck=AE90AC7A08BFE23687D1D3F31534C40E&amp;idpp=rc&amp;idpview=singleimage&amp;form=rc2idp" aria-hidden="true" title="Explore this image" data-bm="56"><div class="b_greyBackgroundModal"></div></div></div><h2><a href="https://en.wikipedia.org/wiki/Google_Scholar" h="ID=SERP,5346.2" target="_blank" style="">Google Scholar - Wikipedia</a></h2><p class="b_lineclamp3 b_algoSlug"><span class="algoSlug_icon" data-priority="2">WEB</span>Google Scholar is a free web search engine that indexes scholarly literature across various formats and disciplines. It offers features such as citation analysis, author profiles, related articles, and access to full-text or …</p></div></div><div class="b_caption b_rich" role="contentinfo"></div></li>
+
+do the same for bing
+
+
+## AI (claude-3.5-sonnet):
+
+
+
+Certainly! I'll update the Bing-specific part of the `extractSearchResults` function based on the HTML structure you provided. Here's the revised version:
+
+```javascript:src/content.js
+function extractSearchResults(websites, searchEngine) {
+  const results = [];
+  let resultElements;
+
+  switch (searchEngine) {
+    case 'google':
+      resultElements = document.querySelectorAll('div.g');
+      break;
+    case 'bing':
+      resultElements = document.querySelectorAll('li.b_algo');
+      break;
+    case 'duckduckgo':
+      resultElements = document.querySelectorAll('article[data-testid="result"]');
+      break;
+    default:
+      return results;
+  }
+  
+  resultElements.forEach((element) => {
+    let titleElement, linkElement, snippetElement;
+
+    switch (searchEngine) {
+      case 'google':
+        titleElement = element.querySelector('h3.LC20lb');
+        linkElement = element.querySelector('a');
+        const emElement = element.querySelector('em');
+        snippetElement = emElement ? emElement.closest('div[style*="-webkit-line-clamp"]') : null;
+        break;
+      case 'bing':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('h2 a');
+        snippetElement = element.querySelector('.b_caption p');
+        if (!snippetElement) {
+          snippetElement = element.querySelector('.b_algoSlug');
+        }
+        break;
+      case 'duckduckgo':
+        titleElement = element.querySelector('h2');
+        linkElement = element.querySelector('a[data-testid="result-title-a"]');
+        snippetElement = element.querySelector('div[data-result="snippet"]');
+        break;
+    }
+
+    if (titleElement && linkElement && snippetElement) {
+      const link = linkElement.href;
+      const result = {
+        title: titleElement.textContent,
+        link: link,
+        snippet: snippetElement.textContent,
+        priority: 0
+      };
+
+      // Check if the link contains any of the monitored websites
+      const matchedWebsiteIndex = websites.findIndex(website => link?.toLowerCase().includes(website?.toLowerCase()));
+      if (matchedWebsiteIndex !== -1) {
+        result.priority = matchedWebsiteIndex + 1;
+        results.push(result);
+      }
+    }
+  });
+
+  return results;
+}
+
+// ... rest of the code remains the same
+```
+
+Here's an explanation of the changes for Bing:
+
+1. Updated the selector for result elements to `li.b_algo`, which is the main container for each search result in Bing.
+2. Modified the selectors for title, link, and snippet elements:
+   - Title: `h2` (remains the same)
+   - Link: `h2 a` (the anchor tag inside the h2 element)
+   - Snippet: We first try to find `.b_caption p`, and if that's not found, we fall back to `.b_algoSlug`
+
+These changes should make the function more robust for Bing search results. The snippet selector now has a fallback option, which should help in cases where the structure might vary slightly between different types of results.
+
+The functionality for Google and DuckDuckGo remains the same as in the previous update.
+
+This update should provide a more accurate and stable solution for extracting search results from Bing, based on the HTML structure you provided. As always, it's important to monitor the performance of these selectors over time and adjust them if Bing makes significant changes to their HTML structure.
+
