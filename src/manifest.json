@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Google Search Results Reader",
+  "name": "Search Results Filter",
   "version": "1.0",
-  "description": "Reads Google search results",
+  "description": "Filter Google search results for your favorite websites",
   "permissions": [
     "activeTab",
     "scripting",
