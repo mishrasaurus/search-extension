@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Google Search Results Reader Options</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #F5F5F5;
+      margin: 0;
+      padding: 20px;
+      color: #37474F;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+    }
+    h1 {
+      color: #26A69A;
+      font-size: 24px;
+      margin-top: 0;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    h2 {
+      color: #26A69A;
+      font-size: 18px;
+      margin-top: 0;
+      margin-bottom: 15px;
+    }
+    #websiteList {
+      margin-bottom: 20px;
+    }
+    .website-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      background-color: #F5F5F5;
+      border-radius: 4px;
+      padding: 10px;
+    }
+    .website-item span {
+      flex-grow: 1;
+      margin-right: 10px;
+      font-size: 14px;
+      color: #37474F;
+    }
+    .website-item button {
+      background-color: #EC407A;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      font-size: 12px;
+    }
+    .website-item button:hover {
+      background-color: #D81B60;
+    }
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    #newWebsite {
+      flex-grow: 1;
+      padding: 8px;
+      font-size: 14px;
+      border: 1px solid #B0BEC5;
+      border-radius: 4px;
+    }
+    #addWebsite {
+      background-color: #26A69A;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      font-size: 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    #addWebsite:hover {
+      background-color: #00897B;
+    }
+    #status {
+      margin-top: 15px;
+      text-align: center;
+      color: #26A69A;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .help-section {
+      background-color: #F5F5F5;
+      border-radius: 4px;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    .help-section h2 {
+      color: #26A69A;
+      font-size: 16px;
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+    .help-section p, .help-section li {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #37474F;
+    }
+    
+    .header-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin: 0;
+    }
+
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+    }
+
+    .theme-toggle label {
+      margin-right: 8px;
+      font-size: 12px;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 20px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 20px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: #26A69A;
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+
+    /* Dark theme styles */
+    body.dark-theme {
+      background-color: #121212;
+      color: #E0E0E0;
+    }
+    body.dark-theme .container {
+      background-color: #1E1E1E;
+    }
+    body.dark-theme h1 {
+      color: #03DAC6;
+    }
+    body.dark-theme h2 {
+      color: #03DAC6;
+    }
+    body.dark-theme .website-item {
+      background-color: #2C2C2C;
+    }
+    body.dark-theme .website-item span {
+      color: #E0E0E0;
+    }
+    body.dark-theme #newWebsite {
+      background-color: #2C2C2C;
+      color: #E0E0E0;
+      border-color: #3C3C3C;
+    }
+    body.dark-theme .help-section {
+      background-color: #2C2C2C;
+    }
+    body.dark-theme .help-section p,
+    body.dark-theme .help-section li {
+      color: #E0E0E0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-container">
+      <h1>Options</h1>
+      <div class="theme-toggle">
+        <label for="theme-switch">Dark Mode</label>
+        <label class="switch">
+          <input type="checkbox" id="theme-switch">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <h2>Saved Websites</h2>
+
+    <div id="websiteList"></div>
+    <div class="input-group">
+      <input type="text" id="newWebsite" placeholder="Enter a website URL">
+      <button id="addWebsite">Add Website</button>
+    </div>
+    <div id="status"></div>
+
+    <div class="help-section">
+      <h2>How to Use This Extension</h2>
+      <p>This extension helps you prioritize Google search results from your favorite websites. Here's how to use it:</p>
+      <ol>
+        <li>Add websites you want to prioritize in the input field above and click "Add Website" or press Enter.</li>
+        <li>You can add multiple websites. Each website can be a domain name (e.g., "example.com") or a specific page (e.g., "example.com/page").</li>
+        <li>To remove a website, click the "Remove" button next to it in the list above.</li>
+        <li>When you perform a Google search, the extension will automatically open to show prioritized results from your saved websites.</li>
+      </ol>
+      <p>Note: The extension only works on Google search result pages. It does not affect your search results on other websites.</p>
+    </div>
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>
