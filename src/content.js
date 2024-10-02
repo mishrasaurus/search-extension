@@ -26,18 +26,23 @@ function extractSearchResults(websites) {
   });
 
   // Sort results by priority (highest first) and then by original order
-  results.sort((a, b) => b.priority - a.priority);
+  //results.sort((a, b) => b.priority - a.priority);
 
   return results;
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "getResults") {
-    const results = extractSearchResults(request.websites);
-    chrome.runtime.sendMessage({ action: "showResults", results: results });
-    sendResponse({ results: results }); // Send response back to background script
+    if (!window.location.href || !window.location.href.includes('google.com/search')) {
+      sendResponse({results: null});
+      return true;
+    }
+
+    const websites = request.websites;
+    const results = extractSearchResults(websites);
+    sendResponse({results: results});
   }
-  return true; // Indicates that the response will be sent asynchronously
+  return true;
 });
 
 // Don't extract results immediately, wait for the message from background.js

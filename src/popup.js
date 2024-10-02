@@ -40,22 +40,25 @@ function loadResults() {
 
     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
       const currentTab = tabs[0];
-      if (currentTab.url.includes('google.com/search')) {
-        chrome.tabs.sendMessage(currentTab.id, {action: "getResults", websites: websites}, (response) => {
-          if (chrome.runtime.lastError) {
-            console.error(chrome.runtime.lastError);
-            document.getElementById('results').innerHTML = '<p class="no-results">Error: Unable to fetch results.</p>';
-            return;
-          }
-          if (response && response.results) {
-            displayResults(response.results);
-          } else {
-            document.getElementById('results').innerHTML = '<p class="no-results">No results available.</p>';
-          }
-        });
-      } else {
-        document.getElementById('results').innerHTML = '<p class="no-results">This extension only works on Google search result pages.</p>';
+
+      if (!currentTab) {
+        console.error('Unable to get current tab');
+        document.getElementById('results').innerHTML = '<p class="no-results">Error: Unable to access current page. Please try again.</p>';
+        return;
       }
+
+      chrome.tabs.sendMessage(currentTab.id, {action: "getResults", websites: websites}, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error(chrome.runtime.lastError);
+          document.getElementById('results').innerHTML = '<p class="no-results">This extension only works on Google search result pages.</p>';
+          return;
+        }
+        if (response && response.results) {
+          displayResults(response.results);
+        } else {
+          document.getElementById('results').innerHTML = '<p class="no-results">No results available.</p>';
+        }
+      });
     });
   });
 }
@@ -65,5 +68,19 @@ document.addEventListener('DOMContentLoaded', loadResults);
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "showResults") {
     displayResults(request.results);
+  }
+});
+
+document.addEventListener('click', evt => {
+  const a = evt.target.closest('a[href]');
+  if (a) {
+    evt.preventDefault();
+    const isNewTab = evt.metaKey || evt.ctrlKey; // Command key on Mac or Control key on Windows/Linux
+    
+    if (isNewTab) {
+      chrome.tabs.create({ url: a.href, active: false });
+    } else {
+      chrome.tabs.update({ url: a.href });
+    }
   }
 });
