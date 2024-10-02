@@ -2,12 +2,10 @@
   "manifest_version": 3,
   "name": "Search Results Filter",
   "version": "1.0",
-  "description": "Filter Google search results for your favorite websites",
+  "description": "Filter Google search results for your favourite websites",
   "permissions": [
     "activeTab",
-    "scripting",
-    "storage",
-    "tabs"
+    "storage"
   ],
   "host_permissions": [
     "https://www.google.com/*"

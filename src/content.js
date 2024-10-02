@@ -17,9 +17,9 @@ function extractSearchResults(websites) {
       };
 
       // Check if the link contains any of the monitored websites
-      const matchedWebsite = websites.find(website => link.includes(website));
-      if (matchedWebsite) {
-        result.priority = websites.indexOf(matchedWebsite) + 1;
+      const matchedWebsiteIndex = websites.findIndex(website => link?.toLowerCase().includes(website?.toLowerCase()));
+      if (matchedWebsiteIndex !== -1) {
+        result.priority = matchedWebsiteIndex + 1;
         results.push(result);
       }
     }
