@@ -24,7 +24,13 @@ chrome.webNavigation.onCompleted.addListener((details) => {
       });
     });
   }
-}, { url: [{ urlContains: 'google.com/search' }] });
+}, { 
+  url: [
+    { urlContains: 'google.com/search' },
+    { urlContains: 'bing.com/search' },
+    { urlContains: 'duckduckgo.com/' }
+  ] 
+});
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "showResults") {
