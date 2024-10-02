@@ -11,7 +11,7 @@ function displayResults(results) {
     const resultElement = document.createElement('div');
     resultElement.className = 'result';
     resultElement.innerHTML = `
-      <h3><a href="${result.link}" target="_blank">${result.title}</a></h3>
+      <h3><a class="link" href="${result.link}" target="_blank">${result.title}</a></h3>
       <div class="url">${result.link}</div>
       <div class="snippet">${result.snippet}</div>
     `;
@@ -72,7 +72,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 document.addEventListener('click', evt => {
-  const a = evt.target.closest('a[href]');
+  const a = evt.target.closest('.link');
   if (a) {
     evt.preventDefault();
     const isNewTab = evt.metaKey || evt.ctrlKey; // Command key on Mac or Control key on Windows/Linux
