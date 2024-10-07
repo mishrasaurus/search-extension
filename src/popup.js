@@ -50,7 +50,7 @@ function loadResults() {
       chrome.tabs.sendMessage(currentTab.id, {action: "getResults", websites: websites}, (response) => {
         if (chrome.runtime.lastError) {
           console.error(chrome.runtime.lastError);
-          document.getElementById('results').innerHTML = '<p class="no-results">This extension only works on Google search result pages.</p>';
+          document.getElementById('results').innerHTML = '<p class="no-results">This extension only works on Google, Bing, and DuckDuckGo search result pages.</p>';
           return;
         }
         if (response && response.results) {

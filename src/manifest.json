@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Search Results Filter",
-  "version": "1.0",
+  "version": "2.1",
   "description": "Filter search results for your favorite websites on Google, Bing, and DuckDuckGo",
   "permissions": [
     "webNavigation",
